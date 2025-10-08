@@ -35,3 +35,8 @@ if __name__ == "__main__":
     ticker = "MSFT"
     df = load_stock_data(ticker)
     print_data_info(df)
+
+    n = 30  # number of days to show
+    first_n_closes = df['close'][:n].values.flatten()
+    first_n_closes = [round(float(x), 2) for x in first_n_closes]
+    print(f"\nFirst {n} closing prices:\n", first_n_closes)
