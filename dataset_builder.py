@@ -1,9 +1,28 @@
-import pandas as pd
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
-from stock_loader import load_stock_data
+import yfinance as yf
+from xgboost import XGBRegressor
+from sklearn.metrics import mean_absolute_error, mean_squared_error
 
-def create_features(data: pd.DataFrame, lookback: int = 30):
+def load_stock_data(ticker: str, start: str = "2025-01-01", end: str = None):
+    """
+    Loads daily OHLCV data for a given stock ticker from Yahoo Finance.
+
+    Args:
+        ticker (str): Stock ticker symbol (e.g., 'AAPL')
+        start (str): Start date for data (default: '2015-01-01')
+        end (str): End date for data (default: today)
+
+    Returns:
+        pd.DataFrame: DataFrame containing stock data
+    """
+    print(f"Fetching data for {ticker}...")
+    data = yf.download(ticker, start=start, end=end, progress=False, auto_adjust=True)
+    data = data.rename(columns=str.lower)
+    return data
+
+def create_features(data: pd.DataFrame, lag: int = 30):
     """
     Converts OHLCV data into supervised learning features for next-day prediction.
 
@@ -27,11 +46,11 @@ def create_features(data: pd.DataFrame, lookback: int = 30):
     target_dates = []
     feature_dates = []
 
-    for i in range(lookback, len(df) - 1):
-        window = df.iloc[i - lookback:i]
+    for i in range(lag, len(df)):
+        window = df.iloc[i - lag:i]
         next_close = df.iloc[i]["close"]
         next_date = df.index[i]
-        window_dates = df.index[i - lookback:i]
+        window_dates = df.index[i - lag:i]
 
         # flatten window data (close & volume)
         feat = np.concatenate([
@@ -48,8 +67,74 @@ def create_features(data: pd.DataFrame, lookback: int = 30):
     target_dates = np.array(target_dates)
     return X, y, target_dates, feature_dates
 
+def train_xgb_model(X, y, target_dates, train_ratio=0.8, params=None, plot=True):
+    """
+    Trains and evaluates an XGBoost regression model for next-day stock prediction.
+
+    Args:
+        X (np.ndarray): Feature matrix of shape (n_samples, n_features)
+        y (np.ndarray): Target vector (next-day close prices)
+        target_dates (np.ndarray): Corresponding target dates
+        train_ratio (float): Fraction of samples for training (chronological split)
+        params (dict): Optional hyperparameters for XGBRegressor
+        plot (bool): If True, plots predicted vs actual prices
+
+    Returns:
+        model (XGBRegressor): Trained model
+        results (pd.DataFrame): DataFrame with true & predicted values
+    """
+    if params is None:
+        params = {
+            "n_estimators": 600,
+            "learning_rate": 0.03,
+            "max_depth": 5,
+            "min_child_weight": 5,
+            "subsample": 0.8,
+            "colsample_bytree": 0.8,
+            "gamma": 0.2,
+            "reg_lambda": 2.0,
+            "reg_alpha": 0.5,
+            "objective": "reg:squarederror",
+            "eval_metric": "mae",
+            "random_state": 42,
+        }
+
+    split_idx = int(len(X) * train_ratio)
+    X_train, X_test = X[:split_idx], X[split_idx:]
+    y_train, y_test = y[:split_idx], y[split_idx:]
+    dates_train, dates_test = target_dates[:split_idx], target_dates[split_idx:]
+
+    model = XGBRegressor(**params)
+    model.fit(X_train, y_train)
+
+    y_pred = model.predict(X_test)
+    mae = mean_absolute_error(y_test, y_pred)
+    rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+    print(f"\nModel evaluation:")
+    print(f"MAE:  {mae:.4f}")
+    print(f"RMSE: {rmse:.4f}")
+
+    results = pd.DataFrame({
+        "date": dates_test,
+        "actual": y_test,
+        "predicted": y_pred
+    }).set_index("date")
+
+    if plot:
+        plt.figure(figsize=(10, 5))
+        plt.plot(results.index, results["actual"], label="Actual", color="black")
+        plt.plot(results.index, results["predicted"], label="Predicted", color="red", alpha=0.7)
+        plt.title("Next-day Close Price Prediction")
+        plt.xlabel("Date")
+        plt.ylabel("Price")
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
+
+    return model, results
+
 def plot_sample(X: np.ndarray, y: np.ndarray, target_dates: np.ndarray, feature_dates: list, 
-                sample_idx: int = 0, lookback: int = 30, ticker: str = "MSFT"):
+                sample_idx: int = 0, lag: int = 30, ticker: str = "MSFT"):
     """
     Plots the feature vector (closing prices and volumes) for a given sample,
     and shows the next-day target price.
@@ -66,8 +151,8 @@ def plot_sample(X: np.ndarray, y: np.ndarray, target_dates: np.ndarray, feature_
     target_date = target_dates[sample_idx]
     window_dates = feature_dates[sample_idx]
 
-    closes = first_features[:lookback]
-    volumes = first_features[lookback:]
+    closes = first_features[:lag]
+    volumes = first_features[lag:]
 
     fig, ax1 = plt.subplots(figsize=(10, 5))
     
@@ -93,10 +178,12 @@ def plot_sample(X: np.ndarray, y: np.ndarray, target_dates: np.ndarray, feature_
 
 if __name__ == "__main__":
     ticker = "MSFT"
-    lookback = 30
+    lag = 30
     data = load_stock_data(ticker, start="2025-01-01")
-    X, y, target_dates, feature_dates = create_features(data, lookback)
+    X, y, target_dates, feature_dates = create_features(data, lag)
+    model, results = train_xgb_model(X, y, target_dates, train_ratio=0.8)
 
+'''
     print(f"\nTicker: {ticker}")
     print(f"Features shape: {X.shape}")
     print(f"Targets shape: {y.shape}")
@@ -105,4 +192,5 @@ if __name__ == "__main__":
     print(f"First target date: {target_dates[0]}")
     print(f"First feature dates: from {feature_dates[0][0]} to {feature_dates[0][-1]}")
 
-    plot_sample(X, y, target_dates, feature_dates, sample_idx=0, lookback=lookback, ticker=ticker)
+    plot_sample(X, y, target_dates, feature_dates, sample_idx=0, lag=lag, ticker=ticker)
+'''

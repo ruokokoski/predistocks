@@ -33,7 +33,7 @@ def print_data_info(data: pd.DataFrame):
 
 if __name__ == "__main__":
     ticker = "MSFT"
-    df = load_stock_data(ticker)
+    df = load_stock_data(ticker, "2025-08-19")
     print_data_info(df)
 
     n = 30  # number of days to show
