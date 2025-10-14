@@ -67,21 +67,21 @@ def create_features(data: pd.DataFrame, lag: int = 30):
     target_dates = np.array(target_dates)
     return X, y, target_dates, feature_dates
 
-def train_xgb_model(X, y, target_dates, train_ratio=0.8, params=None, plot=True):
+def walk_forward_sliding_window(X, y, target_dates, train_window=200, step=1, params=None):
     """
-    Trains and evaluates an XGBoost regression model for next-day stock prediction.
+    Walk-forward validation with a sliding training window for next-day stock prediction.
 
     Args:
-        X (np.ndarray): Feature matrix of shape (n_samples, n_features)
-        y (np.ndarray): Target vector (next-day close prices)
-        target_dates (np.ndarray): Corresponding target dates
-        train_ratio (float): Fraction of samples for training (chronological split)
-        params (dict): Optional hyperparameters for XGBRegressor
-        plot (bool): If True, plots predicted vs actual prices
+        X (np.ndarray): Feature matrix
+        y (np.ndarray): Target vector
+        target_dates (np.ndarray): Corresponding dates
+        train_window (int): Number of past samples used for training at each step
+        step (int): How many steps to move the window forward each iteration
+        params (dict): Hyperparameters for XGBRegressor
 
     Returns:
-        model (XGBRegressor): Trained model
-        results (pd.DataFrame): DataFrame with true & predicted values
+        results (pd.DataFrame): DataFrame with date, actual, predicted
+        metrics (dict): Overall MAE and RMSE
     """
     if params is None:
         params = {
@@ -99,39 +99,87 @@ def train_xgb_model(X, y, target_dates, train_ratio=0.8, params=None, plot=True)
             "random_state": 42,
         }
 
-    split_idx = int(len(X) * train_ratio)
-    X_train, X_test = X[:split_idx], X[split_idx:]
-    y_train, y_test = y[:split_idx], y[split_idx:]
-    dates_train, dates_test = target_dates[:split_idx], target_dates[split_idx:]
+    n_samples = len(X)
+    predictions = []
+    actuals = []
+    dates = []
 
-    model = XGBRegressor(**params)
-    model.fit(X_train, y_train)
+    start_idx = train_window
+    for i in range(start_idx, n_samples, step):
+        train_idx = slice(i - train_window, i)
+        test_idx = i
 
-    y_pred = model.predict(X_test)
-    mae = mean_absolute_error(y_test, y_pred)
-    rmse = np.sqrt(mean_squared_error(y_test, y_pred))
-    print(f"\nModel evaluation:")
-    print(f"MAE:  {mae:.4f}")
-    print(f"RMSE: {rmse:.4f}")
+        X_train, y_train = X[train_idx], y[train_idx]
+        X_test, y_test = X[test_idx:test_idx+1], y[test_idx:test_idx+1]
+
+        model = XGBRegressor(**params)
+        model.fit(X_train, y_train)
+
+        y_pred = model.predict(X_test)
+
+        predictions.append(y_pred[0])
+        actuals.append(y_test[0])
+        dates.append(target_dates[test_idx])
 
     results = pd.DataFrame({
-        "date": dates_test,
-        "actual": y_test,
-        "predicted": y_pred
+        "date": dates,
+        "actual": actuals,
+        "predicted": predictions
     }).set_index("date")
 
-    if plot:
-        plt.figure(figsize=(10, 5))
-        plt.plot(results.index, results["actual"], label="Actual", color="black")
-        plt.plot(results.index, results["predicted"], label="Predicted", color="red", alpha=0.7)
-        plt.title("Next-day Close Price Prediction")
-        plt.xlabel("Date")
-        plt.ylabel("Price")
-        plt.legend()
-        plt.tight_layout()
-        plt.show()
+    mae = mean_absolute_error(results["actual"], results["predicted"])
+    rmse = np.sqrt(mean_squared_error(results["actual"], results["predicted"]))
+    mape = np.mean(np.abs((results["actual"] - results["predicted"]) / results["actual"])) * 100
 
-    return model, results
+    # Directional Accuracy (DA)
+    actual_change = np.sign(results["actual"].diff())
+    predicted_change = np.sign(results["predicted"].diff())
+    da = np.mean(actual_change[1:] == predicted_change[1:]) * 100
+
+    metrics = {
+        "MAE": mae,
+        "RMSE": rmse,
+        "MAPE": mape,
+        "Directional_Accuracy": da
+    }
+
+    print(f"\nWalk-forward (sliding window) metrics:")
+    print(f"MAE:  {mae:.4f}")
+    print(f"RMSE: {rmse:.4f}")
+    print(f"MAPE: {mape:.2f}%")
+    print(f"DA:   {da:.2f}%")
+
+    return results, metrics
+
+def plot_walk_forward_results(results: pd.DataFrame, ticker: str = "MSFT"):
+    """
+    Plots walk-forward prediction results:
+    - Actual vs predicted prices
+    - Prediction error over time
+
+    Args:
+        results (pd.DataFrame): DataFrame with 'actual' and 'predicted' columns indexed by date
+        ticker (str): Stock ticker for title
+    """
+    fig, ax = plt.subplots(2, 1, figsize=(12, 8), sharex=True,
+                           gridspec_kw={'height_ratios': [3, 1]})
+
+    ax[0].plot(results.index, results["actual"], label="Actual", color="black")
+    ax[0].plot(results.index, results["predicted"], label="Predicted", color="red", alpha=0.7)
+    ax[0].set_ylabel("Close Price")
+    ax[0].set_title(f"{ticker} — Next-Day Close Prediction (Walk-Forward, Sliding Window)")
+    ax[0].legend(loc="upper left")
+    ax[0].grid(True, linestyle="--", alpha=0.4)
+
+    errors = results["predicted"] - results["actual"]
+    ax[1].plot(results.index, errors, color="blue", alpha=0.6)
+    ax[1].axhline(0, color="black", linewidth=1)
+    ax[1].set_ylabel("Prediction Error")
+    ax[1].set_xlabel("Date")
+    ax[1].grid(True, linestyle="--", alpha=0.4)
+
+    plt.tight_layout()
+    plt.show()
 
 def plot_sample(X: np.ndarray, y: np.ndarray, target_dates: np.ndarray, feature_dates: list, 
                 sample_idx: int = 0, lag: int = 30, ticker: str = "MSFT"):
@@ -179,18 +227,15 @@ def plot_sample(X: np.ndarray, y: np.ndarray, target_dates: np.ndarray, feature_
 if __name__ == "__main__":
     ticker = "MSFT"
     lag = 30
-    data = load_stock_data(ticker, start="2025-01-01")
+    data = load_stock_data(ticker, start="2023-01-01")
     X, y, target_dates, feature_dates = create_features(data, lag)
-    model, results = train_xgb_model(X, y, target_dates, train_ratio=0.8)
+    results, metrics = walk_forward_sliding_window(
+        X, y, target_dates,
+        train_window=100,
+        step=1 # predict daily
+    )
+    plot_walk_forward_results(results, ticker)
 
 '''
-    print(f"\nTicker: {ticker}")
-    print(f"Features shape: {X.shape}")
-    print(f"Targets shape: {y.shape}")
-    print(f"Example feature vector (first row): {X[0][:5]} ...")
-    print(f"First target: {y[0]:.2f}")
-    print(f"First target date: {target_dates[0]}")
-    print(f"First feature dates: from {feature_dates[0][0]} to {feature_dates[0][-1]}")
-
     plot_sample(X, y, target_dates, feature_dates, sample_idx=0, lag=lag, ticker=ticker)
 '''
