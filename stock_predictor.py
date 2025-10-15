@@ -151,6 +151,44 @@ def walk_forward_sliding_window(X, y, target_dates, train_window=200, step=1, pa
 
     return results, metrics
 
+def optimize_window_sizes(data, lag_values, train_window_values, ticker="MSFT"):
+    """
+    Simple grid search over lag and train_window sizes using walk-forward validation.
+
+    Args:
+        data (pd.DataFrame): Stock data (OHLCV)
+        lag_values (list): Candidate lag values (e.g. [5, 10, 20, 30])
+        train_window_values (list): Candidate train_window sizes (e.g. [50, 100, 200])
+        ticker (str): Ticker symbol for reporting
+
+    Returns:
+        pd.DataFrame: Results sorted by MAE
+    """
+    results_summary = []
+
+    for lag in lag_values:
+        X, y, target_dates, _ = create_features(data, lag)
+        for tw in train_window_values:
+            if tw >= len(X) // 2:
+                continue
+            print(f"\nTesting lag={lag}, train_window={tw}...")
+            try:
+                _, metrics = walk_forward_sliding_window(X, y, target_dates, train_window=tw)
+                results_summary.append({
+                    "lag": lag,
+                    "train_window": tw,
+                    **metrics
+                })
+            except Exception as e:
+                print(f"  ❌ Failed for lag={lag}, train_window={tw}: {e}")
+
+    df_results = pd.DataFrame(results_summary)
+    df_results = df_results.sort_values("MAE")
+    print("\n=== Optimization Results (sorted by MAE) ===")
+    print(df_results.head(10))
+    return df_results
+
+
 def plot_walk_forward_results(results: pd.DataFrame, ticker: str = "MSFT"):
     """
     Plots walk-forward prediction results:
@@ -229,6 +267,15 @@ if __name__ == "__main__":
     lag = 30
     data = load_stock_data(ticker, start="2023-01-01")
     X, y, target_dates, feature_dates = create_features(data, lag)
+
+    lag_values = [5, 10, 20, 30]
+    train_window_values = [50, 100, 150, 200]
+
+    results_df = optimize_window_sizes(data, lag_values, train_window_values, ticker)
+
+    best = results_df.iloc[0]
+    print(f"\nBest configuration: lag={best.lag}, train_window={best.train_window}")
+'''
     results, metrics = walk_forward_sliding_window(
         X, y, target_dates,
         train_window=100,
@@ -236,6 +283,6 @@ if __name__ == "__main__":
     )
     plot_walk_forward_results(results, ticker)
 
-'''
+
     plot_sample(X, y, target_dates, feature_dates, sample_idx=0, lag=lag, ticker=ticker)
 '''
