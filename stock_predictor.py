@@ -5,7 +5,7 @@ import yfinance as yf
 from xgboost import XGBRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 
-def load_stock_data(ticker: str, start: str = "2025-01-01", end: str = None):
+def load_stock_data(ticker: str, start: str = "2023-01-01", end: str = None):
     """
     Loads daily OHLCV data for a given stock ticker from Yahoo Finance.
 
@@ -188,7 +188,6 @@ def optimize_window_sizes(data, lag_values, train_window_values, ticker="MSFT"):
     print(df_results.head(10))
     return df_results
 
-
 def plot_walk_forward_results(results: pd.DataFrame, ticker: str = "MSFT"):
     """
     Plots walk-forward prediction results:
@@ -268,8 +267,8 @@ if __name__ == "__main__":
     data = load_stock_data(ticker, start="2023-01-01")
     X, y, target_dates, feature_dates = create_features(data, lag)
 
-    lag_values = [5, 10, 20, 30]
-    train_window_values = [50, 100, 150, 200]
+    lag_values = [2, 3, 4, 5, 6, 10, 20, 30]
+    train_window_values = [50, 75, 100, 125, 150]
 
     results_df = optimize_window_sizes(data, lag_values, train_window_values, ticker)
 
