@@ -2,7 +2,7 @@
 
 Financial markets generate an enormous amount of data every day. For many individual investors, interpreting constant price movements and separating meaningful signals from noise can be challenging. While institutional traders rely on advanced algorithms and data-driven strategies, most retail investors do not have access to similar predictive tools.
 
-This project explores how machine learning can help bridge that gap. The goal is to forecast the next-day performance of S&P 500 stocks using historical market data. The model is built with XGBoost, a gradient boosting algorithm well known for capturing complex, nonlinear relationships while maintaining good generalization performance. Its strong track record in time series forecasting makes it a natural choice for this task. The model was developed using a Jupyter Notebook, which is available [here](https://github.com/ruokokoski/predistocks/blob/main/stock_predictor_prod.ipynb).
+This project explores how machine learning can help bridge that gap. The goal is to forecast the next-day performance of S&P 500 stocks using historical market data. The model is built with XGBoost, a gradient boosting algorithm well known for capturing complex, nonlinear relationships while maintaining good generalization performance. Its strong track record in time series forecasting makes it a natural choice for this task. The model was developed using a Jupyter Notebook, which is available [here](https://github.com/ruokokoski/predistocks/blob/main/stock_predictor.ipynb).
 
 In traditional investing, technical indicators such as moving averages, RSI, and MACD have long been used to identify trends and momentum. Their usefulness is still debated: some believe they reflect genuine patterns in market behavior, while others see them as artifacts of randomness. This project examines whether combining these common indicators with raw price and volume data can improve the predictive accuracy of a machine learning model.
 
@@ -33,6 +33,7 @@ def load_stock_data(ticker, start_date, end_date):
     """
     stock = yf.download(ticker, start=start_date, end=end_date)
     return stock
+```
 
 ### Inspecting Data
 
@@ -111,14 +112,18 @@ For example, comparing configurations for Microsoft (MSFT) illustrates the effec
 
 Including technical indicators leads to modest but consistent improvements, with lower MAE and MAPE, slightly higher R², and better directional accuracy. This demonstrates that adding carefully selected technical features to raw OHLCV data can enhance predictive performance while keeping the model relatively simple.
 
-To illustrate how optimal configurations differ between stocks, the table below summarizes the best-performing lag, training window, and resulting metrics for MAPE and directional accuracy (DA) for Microsoft (MSFT), Coca-Cola (KO), Johnson & Johnson (JNJ), and Palantir (PLTR). Optimization goal here is MAPE.
+To illustrate how optimal configurations differ between stocks, the table below summarizes the best-performing lag, training window, and resulting metrics for MAPE and directional accuracy (DA) for Microsoft (MSFT), Coca-Cola (KO), Johnson & Johnson (JNJ), and Visa (V)).
 
 | Ticker | Lag | Training Window | Best MAPE | Best DA |
 |--------|-----|----------------|-----------|---------|
-| MSFT   | 4   | 100            | 0.9861%    | 52.94%  |
-| KO     | 3   | 100            | 0.7505%    | 55.37%  |
-| JNJ    | 2   | 80             | 0.9610%    | 53.52%  |
-| PLTR   | x   | xx             | 0.xxxx%    | xx.xx%  |
+| MSFT   | 4   | 100            | 0.986%    | 52.94%  |
+| KO     | 3   | 100            | 0.751%    | 55.37%  |
+| JNJ    | 2   | 80             | 0.961%    | 53.52%  |
+| V      | 2   | 90             | 1.028%    | 45.11%  |
+
+Visa’s weaker results are likely due to its recent sideways price movement. When a stock lacks a clear trend and fluctuates up and down within a narrow range, the model finds it harder to identify consistent patterns. The following figure illustrates Visa’s price behavior over the past six months.
+
+![V prediction](../pics/v_prediction.png)
 
 
 ### Hyperparameter Optimization
