@@ -90,15 +90,15 @@ Different model configurations are tested, such as how many past days to use as 
 
 The model is evaluated both with raw OHLCV data and with additional technical indicators. Performance is measured using metrics like:
 
-- **Mean Absolute Error (MAE)**
+- **Mean Absolute Error (MAE)** – the average absolute difference between predicted and actual prices.
 
-- **Mean Absolute Percentage Error (MAPE)**
+- **Mean Absolute Percentage Error (MAPE)** – the average absolute percentage difference between predictions and actual values.
 
-- **Root Mean Squared Error (RMSE)**
+- **Root Mean Squared Error (RMSE)** – the square root of the average squared prediction errors.
 
-- **R²**, which 
+- **R²**, which indicates how much of the variance in actual prices is explained by the model.
 
-- **Directional Accuracy**, which shows how often the model correctly predicts the next day’s price movement
+- **Directional Accuracy (DA)**, which shows how often the model correctly predicts the next day’s price movement.
 
 This testing process helps identify the best configuration for each stock before generating final predictions. While several years of historical data are collected, the actual next-day prediction only uses the most recent portion of data defined by the chosen training window. Longer histories are mainly used to compare different setups and find the optimal lag and window size.
 
@@ -112,14 +112,15 @@ For example, comparing configurations for Microsoft (MSFT) illustrates the effec
 
 Including technical indicators leads to modest but consistent improvements, with lower MAE and MAPE, slightly higher R², and better directional accuracy. This demonstrates that adding carefully selected technical features to raw OHLCV data can enhance predictive performance while keeping the model relatively simple.
 
-To illustrate how optimal configurations differ between stocks, the table below summarizes the best-performing lag, training window, and resulting metrics for MAPE and directional accuracy (DA) for Microsoft (MSFT), Coca-Cola (KO), Johnson & Johnson (JNJ), and Visa (V)).
+To illustrate how optimal configurations differ between stocks, the table below summarizes the best-performing lag, training window, and resulting metrics for MAPE and directional accuracy (DA) for Microsoft (MSFT), Coca-Cola (KO), Johnson & Johnson (JNJ), Visa (V), and Netflix (NFLX).
 
-| Ticker | Lag | Training Window | Best MAPE | Best DA |
+| Ticker | Lag | Training Window | MAPE | DA |
 |--------|-----|----------------|-----------|---------|
 | MSFT   | 4   | 100            | 0.986%    | 52.94%  |
 | KO     | 3   | 100            | 0.751%    | 55.37%  |
 | JNJ    | 2   | 80             | 0.961%    | 53.52%  |
 | V      | 2   | 90             | 1.028%    | 45.11%  |
+| NFLX   | 3   | 100            | 1.403%    | 57.02%  |
 
 Visa’s weaker results are likely due to its recent sideways price movement. When a stock lacks a clear trend and fluctuates up and down within a narrow range, the model finds it harder to identify consistent patterns. The following figure illustrates Visa’s price behavior over the past six months.
 
@@ -134,7 +135,7 @@ Different optimization goals can be targeted, such as minimizing MAE, MAPE, or m
 
 Several optimization objectives were considered:
 
-- **MAPE (Mean Absolute Percentage Error)**: Measures prediction errors as a percentage, making it easy to compare across stocks with different price levels.
+- **MAPE**: Measures prediction errors as a percentage, making it easy to compare across stocks with different price levels.
 
 - **Combined MAPE + DA**: Balances both prediction accuracy and the correct direction of movement.
 
@@ -144,7 +145,7 @@ Optimizing for DA can sometimes conflict with minimizing MAPE. For example, a mo
 
 Since this is a regression model, it is fundamentally designed to predict numeric prices. Metrics like MAPE, MAE, or RMSE are therefore the natural focus. Optimizing for directional accuracy is indirect because the model is not explicitly trained as a classifier. If the main goal is predicting the **direction** rather than the exact price, a classification model (e.g., logistic regression, XGBoost classifier, or other tree-based classifiers) may be more appropriate.
 
-The results for Microsoft (MSFT) under different optimization objectives are summarized below:
+The results for **Microsoft (MSFT)** under different optimization objectives are summarized below:
 
 | Optimization Objective | Best MAPE | Best DA  |
 |------------------------|-----------|----------|
@@ -152,7 +153,7 @@ The results for Microsoft (MSFT) under different optimization objectives are sum
 | MAPE + DA (combined)   | 0.94722   | 52.94%   |
 | DA                     | 0.98031   | 58.82%   |
 
-Optimizing for the combined **MAPE + DA** metric yields the lowest prediction errors, while optimizing solely for **directional accuracy** improves the model’s ability to correctly anticipate the direction of price movements.
+Optimizing for the combined **MAPE + DA** metric yields the lowest prediction errors, while optimizing solely for **directional accuracy** improves the model’s ability to correctly anticipate the direction of price movements. *Note: These results and optimal objectives can vary significantly across different stocks.*
 
 A walk-forward plot can illustrate the model’s performance for MSFT:
 
@@ -171,7 +172,7 @@ Another way to refine the model is by pruning features with low importance score
 
 ### Conclusions
 
-Predicting short-term stock prices is inherently difficult due to the noisy and stochastic nature of market time series. Using the XGBoost model developed in this project, typical next-day predictions achieved a **MAPE of around 1%** and a **directional accuracy of approximately 52%**. When the model was specifically optimized for directional accuracy, it reached **58%**, showing that it can capture short-term trends better than random guessing.
+Predicting short-term stock prices is inherently challenging due to the stochastic and noisy nature of market time series. Using the developed XGBoost model, typical next-day predictions achieved a **MAPE of around 1%** and **directional accuracy ranging from approximately 52% to 57%**. When specifically optimized for directional accuracy, the model can achieve up to **60%** accuracy for certain stocks, which is similar to the benchmark reported in *An Introduction to Statistical Learning: With Applications in Python*.
 
 Incorporating **technical indicators** provided a small but consistent improvement in prediction quality. Errors were slightly reduced, the proportion of variance explained increased, and directional accuracy improved. This suggests that technical analysis features can provide valuable information beyond raw price and volume data for next-day forecasting.
 
