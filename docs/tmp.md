@@ -165,9 +165,17 @@ The following plot illustrates MSFT’s walk-forward predictions:
 
 To understand what drives the model’s predictions, feature importance analysis was performed using the trained XGBoost model. Each input, whether a lagged price, moving average, or technical indicator, is assigned a score that reflects its influence on the prediction of the next day's stock price. Looking at the most recent training window, short-term lagged prices, moving averages, and RSI consistently rank as the most influential features, while other indicators play a smaller role. A visualization of the top 20 features makes it easy to see which pieces of historical data the model relies on most.
 
-![MSFT](../pics/msft_feature_importance.png)
+![MSFT feature importance](../pics/msft_feature_importance.png)
 
 Low-importance features can be pruned to simplify the model and reduce noise. Retraining the model after removing these features can enhance interpretability and sometimes improve accuracy. However, selecting the pruning threshold is another optimization problem: if it is too strict, useful information may be lost or if too loose, irrelevant features may remain.
+
+### Final Model Training
+
+After choosing the optimal hyperparameters, the model is retrained on the most recent data window. The features are rebuilt using the selected lag and technical indicators, and the final XGBoost regressor is fitted on this latest window to produce the next-day prediction.
+
+The figure below shows the model’s next-day closing price prediction for Netflix based on the most recent historical data.
+
+![Netflix prediction](../pics/nflx_prediction.png)
 
 ### Conclusions
 
